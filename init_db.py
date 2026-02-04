@@ -30,7 +30,7 @@ def init_db():
                 id SERIAL PRIMARY KEY,
                 title VARCHAR(255) NOT NULL,
                 description TEXT,
-                completed INTEGER DEFAULT 0,
+                completed INTEGER DEFAULT 0 CHECK (completed IN (0, 1)),
                 created_at BIGINT NOT NULL
             )
         ''')
