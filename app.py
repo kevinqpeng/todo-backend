@@ -4,38 +4,13 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 import os
 from dotenv import load_dotenv
-from datetime import datetime
-import pytz
+import time
 
 # Load environment variables
 load_dotenv()
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
-
-# 时区转换辅助函数
-def convert_to_beijing_time(utc_time):
-    """将 UTC 时间转换为北京时间"""
-    if utc_time is None:
-        return None
-
-    # 如果是 naive datetime（没有时区信息），假设它是 UTC
-    if utc_time.tzinfo is None:
-        utc_time = pytz.utc.localize(utc_time)
-
-    # 转换为北京时间
-    beijing_tz = pytz.timezone('Asia/Shanghai')
-    beijing_time = utc_time.astimezone(beijing_tz)
-
-    # 返回格式化的字符串
-    return beijing_time.strftime('%Y-%m-%d %H:%M:%S')
-
-def format_todo(todo):
-    """格式化 todo 对象，将时间转换为北京时间"""
-    todo_dict = dict(todo)
-    if 'created_at' in todo_dict and todo_dict['created_at']:
-        todo_dict['created_at'] = convert_to_beijing_time(todo_dict['created_at'])
-    return todo_dict
 
 # Unified response format
 def success_response(data=None, message='ok', code=200):
@@ -74,8 +49,8 @@ def init_db():
             id SERIAL PRIMARY KEY,
             title VARCHAR(255) NOT NULL,
             description TEXT,
-            completed BOOLEAN DEFAULT FALSE,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            completed INTEGER DEFAULT 0,
+            created_at BIGINT NOT NULL
         )
     ''')
     
@@ -95,7 +70,7 @@ def get_todos():
         cur.close()
         conn.close()
 
-        return success_response(data=[format_todo(todo) for todo in todos])
+        return success_response(data=[dict(todo) for todo in todos])
     except Exception as e:
         return error_response(message=f'获取待办事项列表失败: {str(e)}', code=500)
 
@@ -113,9 +88,12 @@ def create_todo():
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
+        # 生成当前时间戳
+        created_at = int(time.time())
+
         cur.execute(
-            'INSERT INTO todos (title, description) VALUES (%s, %s) RETURNING *',
-            (title, description)
+            'INSERT INTO todos (title, description, created_at) VALUES (%s, %s, %s) RETURNING *',
+            (title, description, created_at)
         )
         new_todo = cur.fetchone()
 
@@ -123,7 +101,7 @@ def create_todo():
         cur.close()
         conn.close()
 
-        return success_response(data=format_todo(new_todo), message='创建待办事项成功', code=201)
+        return success_response(data=dict(new_todo), message='创建待办事项成功', code=201)
     except Exception as e:
         return error_response(message=f'创建待办事项失败: {str(e)}', code=500)
 
@@ -148,6 +126,12 @@ def update_todo(id):
         description = data.get('description', todo['description'])
         completed = data.get('completed', todo['completed'])
 
+        # 验证 completed 字段只能是 0 或 1
+        if completed not in [0, 1]:
+            cur.close()
+            conn.close()
+            return error_response(message='completed 字段只能是 0 或 1', code=400)
+
         cur.execute(
             '''UPDATE todos SET title=%s, description=%s, completed=%s
                WHERE id = %s RETURNING *''',
@@ -159,7 +143,7 @@ def update_todo(id):
         cur.close()
         conn.close()
 
-        return success_response(data=format_todo(updated_todo), message='更新待办事项成功')
+        return success_response(data=dict(updated_todo), message='更新待办事项成功')
     except Exception as e:
         return error_response(message=f'更新待办事项失败: {str(e)}', code=500)
 
@@ -184,7 +168,7 @@ def delete_todo(id):
         cur.close()
         conn.close()
 
-        return success_response(data=format_todo(deleted_todo), message='删除待办事项成功')
+        return success_response(data=dict(deleted_todo), message='删除待办事项成功')
     except Exception as e:
         return error_response(message=f'删除待办事项失败: {str(e)}', code=500)
 
