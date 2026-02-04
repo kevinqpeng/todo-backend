@@ -126,6 +126,10 @@ def update_todo(id):
         description = data.get('description', todo['description'])
         completed = data.get('completed', todo['completed'])
 
+        # 将 boolean 类型转换为整数（兼容前端发送 true/false）
+        if isinstance(completed, bool):
+            completed = 1 if completed else 0
+
         # 验证 completed 字段只能是 0 或 1
         if completed not in [0, 1]:
             cur.close()
