@@ -53,7 +53,7 @@ Backend API for the Todo application with PostgreSQL database.
    python app.py
    ```
 
-The backend will be running on `http://localhost:5000`
+The backend will be running on `http://localhost:5001`
 
 ## API Endpoints
 
@@ -69,9 +69,10 @@ The backend will be running on `http://localhost:5000`
 - `DB_NAME`: Database name (default: todo_app)
 - `DB_USER`: Database user (default: postgres)
 - `DB_PASSWORD`: Database password (default: password)
+- `PORT`: Server port (default: 5001)
 
 ## Frontend Integration
 
 To connect with the frontend Todo app, ensure the `API_BASE_URL` in the frontend's `app.js` points to your backend server.
 
-By default, the frontend expects the backend to be running on `http://localhost:5000/api`.
+By default, the frontend expects the backend to be running on `http://localhost:5001/api`.

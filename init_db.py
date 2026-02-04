@@ -18,8 +18,8 @@ def init_db():
         conn = psycopg2.connect(
             host=os.getenv('DB_HOST', 'localhost'),
             database=os.getenv('DB_NAME', 'todo_app'),
-            user=os.getenv('DB_USER', 'postgres'),
-            password=os.getenv('DB_PASSWORD', 'password')
+            user=os.getenv('DB_USER', 'root'),
+            password=os.getenv('DB_PASSWORD', '123456')
         )
         
         cur = conn.cursor()
