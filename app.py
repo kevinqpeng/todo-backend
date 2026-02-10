@@ -4,13 +4,26 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 import os
 from dotenv import load_dotenv
-import time
+from datetime import datetime
 
 # Load environment variables
 load_dotenv()
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
+
+# Serialize todo object
+def serialize_todo(todo):
+    """序列化 todo 对象，将 datetime 转换为 ISO 8601 字符串"""
+    if todo is None:
+        return None
+
+    todo_dict = dict(todo)
+    # 将 datetime 对象转换为 ISO 8601 字符串
+    if 'created_at' in todo_dict and isinstance(todo_dict['created_at'], datetime):
+        todo_dict['created_at'] = todo_dict['created_at'].isoformat()
+
+    return todo_dict
 
 # Unified response format
 def success_response(data=None, message='ok', code=200):
@@ -43,17 +56,29 @@ def get_db_connection():
 def init_db():
     conn = get_db_connection()
     cur = conn.cursor()
-    
+
+    # Create table with PostgreSQL best practices
     cur.execute('''
         CREATE TABLE IF NOT EXISTS todos (
-            id SERIAL PRIMARY KEY,
-            title VARCHAR(255) NOT NULL,
+            id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+            title TEXT NOT NULL CHECK (LENGTH(title) <= 255 AND LENGTH(title) > 0),
             description TEXT,
-            completed INTEGER DEFAULT 0 CHECK (completed IN (0, 1)),
-            created_at BIGINT NOT NULL
+            completed BOOLEAN NOT NULL DEFAULT FALSE,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT now()
         )
     ''')
-    
+
+    # Create indexes for common query patterns
+    cur.execute('''
+        CREATE INDEX IF NOT EXISTS idx_todos_completed
+        ON todos (completed)
+    ''')
+
+    cur.execute('''
+        CREATE INDEX IF NOT EXISTS idx_todos_created_at
+        ON todos (created_at DESC)
+    ''')
+
     conn.commit()
     cur.close()
     conn.close()
@@ -70,7 +95,7 @@ def get_todos():
         cur.close()
         conn.close()
 
-        return success_response(data=[dict(todo) for todo in todos])
+        return success_response(data=[serialize_todo(todo) for todo in todos])
     except Exception as e:
         return error_response(message=f'获取待办事项列表失败: {str(e)}', code=500)
 
@@ -88,12 +113,10 @@ def create_todo():
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        # 生成当前时间戳
-        created_at = int(time.time())
-
+        # 数据库自动生成 created_at
         cur.execute(
-            'INSERT INTO todos (title, description, created_at) VALUES (%s, %s, %s) RETURNING *',
-            (title, description, created_at)
+            'INSERT INTO todos (title, description) VALUES (%s, %s) RETURNING *',
+            (title, description)
         )
         new_todo = cur.fetchone()
 
@@ -101,7 +124,7 @@ def create_todo():
         cur.close()
         conn.close()
 
-        return success_response(data=dict(new_todo), message='创建待办事项成功', code=201)
+        return success_response(data=serialize_todo(new_todo), message='创建待办事项成功', code=201)
     except Exception as e:
         return error_response(message=f'创建待办事项失败: {str(e)}', code=500)
 
@@ -126,15 +149,11 @@ def update_todo(id):
         description = data.get('description', todo['description'])
         completed = data.get('completed', todo['completed'])
 
-        # 将 boolean 类型转换为整数（兼容前端发送 true/false）
-        if isinstance(completed, bool):
-            completed = 1 if completed else 0
-
-        # 验证 completed 字段只能是 0 或 1
-        if completed not in [0, 1]:
+        # 验证 completed 字段必须是布尔值
+        if not isinstance(completed, bool):
             cur.close()
             conn.close()
-            return error_response(message='completed 字段只能是 0 或 1', code=400)
+            return error_response(message='completed 字段必须是布尔值', code=400)
 
         cur.execute(
             '''UPDATE todos SET title=%s, description=%s, completed=%s
@@ -147,7 +166,7 @@ def update_todo(id):
         cur.close()
         conn.close()
 
-        return success_response(data=dict(updated_todo), message='更新待办事项成功')
+        return success_response(data=serialize_todo(updated_todo), message='更新待办事项成功')
     except Exception as e:
         return error_response(message=f'更新待办事项失败: {str(e)}', code=500)
 
@@ -172,7 +191,7 @@ def delete_todo(id):
         cur.close()
         conn.close()
 
-        return success_response(data=dict(deleted_todo), message='删除待办事项成功')
+        return success_response(data=serialize_todo(deleted_todo), message='删除待办事项成功')
     except Exception as e:
         return error_response(message=f'删除待办事项失败: {str(e)}', code=500)
 

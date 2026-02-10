@@ -24,15 +24,26 @@ def init_db():
         
         cur = conn.cursor()
         
-        # Create todos table
+        # Create todos table with PostgreSQL best practices
         cur.execute('''
             CREATE TABLE IF NOT EXISTS todos (
-                id SERIAL PRIMARY KEY,
-                title VARCHAR(255) NOT NULL,
+                id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                title TEXT NOT NULL CHECK (LENGTH(title) <= 255 AND LENGTH(title) > 0),
                 description TEXT,
-                completed INTEGER DEFAULT 0 CHECK (completed IN (0, 1)),
-                created_at BIGINT NOT NULL
+                completed BOOLEAN NOT NULL DEFAULT FALSE,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT now()
             )
+        ''')
+
+        # Create indexes for common query patterns
+        cur.execute('''
+            CREATE INDEX IF NOT EXISTS idx_todos_completed
+            ON todos (completed)
+        ''')
+
+        cur.execute('''
+            CREATE INDEX IF NOT EXISTS idx_todos_created_at
+            ON todos (created_at DESC)
         ''')
         
         conn.commit()
