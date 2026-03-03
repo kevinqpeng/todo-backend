@@ -14,7 +14,7 @@ app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
 ov_integration = OpenVikingIntegration()
 
-# Serialize todo object
+# Serialize Todo object
 def serialize_todo(todo):
     """序列化 todo 对象，将 datetime 转换为 ISO 8601 字符串"""
     if todo is None:
@@ -234,9 +234,11 @@ def get_todos():
 @app.route('/api/todos', methods=['POST'])
 def create_todo():
     try:
-        data = request.get_json()
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict):
+            return error_response(message='请求体必须是 JSON 对象', code=400)
 
-        title = data.get('title')
+        title = (data.get('title') or '').strip()
         description = data.get('description', '')
 
         if not title:
@@ -268,7 +270,9 @@ def create_todo():
 @app.route('/api/todos/<int:id>', methods=['PUT'])
 def update_todo(id):
     try:
-        data = request.get_json()
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict):
+            return error_response(message='请求体必须是 JSON 对象', code=400)
 
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -283,6 +287,13 @@ def update_todo(id):
 
         # Update the todo
         title = data.get('title', todo['title'])
+        if isinstance(title, str):
+            title = title.strip()
+        if not title:
+            cur.close()
+            conn.close()
+            return error_response(message='标题不能为空', code=400)
+
         description = data.get('description', todo['description'])
         completed = data.get('completed', todo['completed'])
 
