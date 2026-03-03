@@ -35,3 +35,6 @@ coverage.xml
 
 # MCP configuration (contains sensitive credentials)
 .mcp.json
+
+# Runtime data directories
+data/
